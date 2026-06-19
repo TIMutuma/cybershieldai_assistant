@@ -1,22 +1,27 @@
-```python
 import os
 from typing import Optional
 
 import requests
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from openai import OpenAI
+from google import genai
 
 # =====================================================
-# CONFIG
+# LOAD ENVIRONMENT VARIABLES
 # =====================================================
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 ABUSEIPDB_API_KEY = os.getenv("ABUSEIPDB_API_KEY")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY not found in environment variables")
+
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 # =====================================================
 # FASTAPI
@@ -24,8 +29,8 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = FastAPI(
     title="CyberShield AI",
-    description="AI Cybersecurity Assistant",
-    version="1.0.0"
+    description="AI Cybersecurity Assistant powered by Gemini",
+    version="2.0.0"
 )
 
 app.add_middleware(
@@ -43,14 +48,18 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     question: str
 
+
 class EmailRequest(BaseModel):
     email: str
+
 
 class URLRequest(BaseModel):
     url: str
 
+
 class IPRequest(BaseModel):
     ip: str
+
 
 # =====================================================
 # HELPERS
@@ -68,21 +77,24 @@ def classify_risk(score: int):
 
 def ask_ai(system_prompt: str, user_prompt: str):
 
-    response = client.chat.completions.create(
-        model="gpt-5",
-        messages=[
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
-        ]
-    )
+    prompt = f"""
+    {system_prompt}
 
-    return response.choices[0].message.content
+    User Request:
+    {user_prompt}
+    """
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+
+        return response.text
+
+    except Exception as e:
+        return f"AI Error: {str(e)}"
+
 
 # =====================================================
 # ROOT
@@ -93,8 +105,10 @@ async def home():
     return {
         "name": "CyberShield AI",
         "status": "running",
-        "version": "1.0.0"
+        "ai_model": "Gemini 2.5 Flash",
+        "version": "2.0.0"
     }
+
 
 # =====================================================
 # HEALTH CHECK
@@ -105,6 +119,7 @@ async def health():
     return {
         "status": "healthy"
     }
+
 
 # =====================================================
 # AI SECURITY CHAT
@@ -122,6 +137,7 @@ async def chat(data: ChatRequest):
         "response": answer
     }
 
+
 # =====================================================
 # EMAIL PHISHING ANALYZER
 # =====================================================
@@ -130,18 +146,19 @@ async def chat(data: ChatRequest):
 async def scan_email(data: EmailRequest):
 
     prompt = f"""
-    Analyze the following email.
+Analyze the following email.
 
-    Return:
-    1. Risk Level
-    2. Phishing Indicators
-    3. Explanation
-    4. Recommended Action
+Provide:
 
-    Email:
+1. Risk Level (Low, Medium, High)
+2. Phishing Indicators
+3. Explanation
+4. Recommended Action
 
-    {data.email}
-    """
+EMAIL:
+
+{data.email}
+"""
 
     result = ask_ai(
         "You are an expert phishing analyst.",
@@ -151,6 +168,7 @@ async def scan_email(data: EmailRequest):
     return {
         "analysis": result
     }
+
 
 # =====================================================
 # URL ANALYZER
@@ -185,6 +203,7 @@ async def scan_url(data: URLRequest):
 
     return response.json()
 
+
 # =====================================================
 # IP REPUTATION CHECK
 # =====================================================
@@ -212,6 +231,7 @@ async def check_ip(data: IPRequest):
 
     return response.json()
 
+
 # =====================================================
 # CYBERSECURITY ADVISOR
 # =====================================================
@@ -220,13 +240,41 @@ async def check_ip(data: IPRequest):
 async def security_advice(data: ChatRequest):
 
     result = ask_ai(
-        "You are a cybersecurity advisor helping small businesses.",
+        "You are a cybersecurity consultant helping businesses improve their security posture.",
         data.question
     )
 
     return {
         "advice": result
     }
+
+
+# =====================================================
+# AI THREAT ANALYZER
+# =====================================================
+
+@app.post("/analyze-threat")
+async def analyze_threat(data: ChatRequest):
+
+    result = ask_ai(
+        """
+You are a Senior SOC Analyst.
+
+Analyze the threat and provide:
+
+1. Threat Level
+2. Attack Type
+3. Potential Impact
+4. MITRE ATT&CK Mapping
+5. Recommended Mitigation
+""",
+        data.question
+    )
+
+    return {
+        "analysis": result
+    }
+
 
 # =====================================================
 # DASHBOARD
@@ -243,6 +291,7 @@ async def dashboard():
         "status": "Protected"
     }
 
+
 # =====================================================
 # RISK SCORE DEMO
 # =====================================================
@@ -254,4 +303,18 @@ async def risk_score(score: int):
         "score": score,
         "level": classify_risk(score)
     }
-```
+
+
+# =====================================================
+# STARTUP
+# =====================================================
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )

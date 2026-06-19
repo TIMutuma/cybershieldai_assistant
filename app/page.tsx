@@ -1,65 +1,218 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useRef, useState } from "react";
+import { Bot, Send, Shield, User, Loader2 } from "lucide-react";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export default function Chat() {
+  const [question, setQuestion] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "assistant",
+      content:
+        "Hello! I'm CyberShield AI. Ask me about phishing emails, suspicious links, malware, ransomware, password security, or any cybersecurity concern."
+    }
+  ]);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages]);
+
+  async function ask() {
+    if (!question.trim()) return;
+
+    const userMessage = question;
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: userMessage,
+      },
+    ]);
+
+    setQuestion("");
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        "http://localhost:8000/chat",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            question: userMessage,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            data.response ||
+            "Unable to generate response.",
+        },
+      ]);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            "Connection error. Please try again.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleKeyDown(
+    e: React.KeyboardEvent<HTMLTextAreaElement>
+  ) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      ask();
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-slate-950 text-white flex flex-col">
+      {/* Header */}
+      <header className="border-b border-slate-800">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-3">
+          <Shield size={30} />
+
+          <div>
+            <h1 className="text-2xl font-bold">
+              CyberShield AI Assistant
+            </h1>
+
+            <p className="text-slate-400 text-sm">
+              AI-powered cybersecurity guidance
+            </p>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+      </header>
+
+      {/* Chat Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-6 py-8">
+
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className={`mb-6 flex ${
+                message.role === "user"
+                  ? "justify-end"
+                  : "justify-start"
+              }`}
+            >
+              <div
+                className={`max-w-3xl rounded-xl p-4 ${
+                  message.role === "user"
+                    ? "bg-blue-600"
+                    : "bg-slate-900 border border-slate-800"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  {message.role === "assistant" ? (
+                    <>
+                      <Bot size={18} />
+                      <span className="font-semibold">
+                        CyberShield AI
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <User size={18} />
+                      <span className="font-semibold">
+                        You
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <p className="whitespace-pre-wrap">
+                  {message.content}
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
+                <Loader2
+                  className="animate-spin"
+                  size={18}
+                />
+
+                <span>
+                  CyberShield AI is analyzing...
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      {/* Input Section */}
+      <div className="border-t border-slate-800">
+        <div className="max-w-5xl mx-auto p-6">
+
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+
+            <textarea
+              rows={3}
+              value={question}
+              onChange={(e) =>
+                setQuestion(e.target.value)
+              }
+              onKeyDown={handleKeyDown}
+              placeholder="Ask about phishing emails, suspicious websites, malware, password security..."
+              className="w-full bg-transparent resize-none outline-none"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+            <div className="flex justify-between items-center mt-4">
+
+              <span className="text-sm text-slate-400">
+                Press Enter to send
+              </span>
+
+              <button
+                onClick={ask}
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
+              >
+                <Send size={18} />
+                Send
+              </button>
+
+            </div>
+
+          </div>
+
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
