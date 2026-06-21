@@ -1,10 +1,23 @@
+import os
 import requests
 from typing import Dict, List
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class CVEService:
 
     BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    NVD_API_KEY = os.getenv("NVD_API_KEY")
+
+    @classmethod
+    def _get_headers(cls) -> Dict:
+        """Get request headers with API key if available"""
+        headers = {"User-Agent": "CyberShield-AI"}
+        if cls.NVD_API_KEY:
+            headers["api-key"] = cls.NVD_API_KEY
+        return headers
 
     @classmethod
     def search_cves(
@@ -19,6 +32,7 @@ class CVEService:
                 "keywordSearch": keyword,
                 "resultsPerPage": limit
             },
+            headers=cls._get_headers(),
             timeout=30
         )
 
@@ -54,6 +68,7 @@ class CVEService:
             params={
                 "cveId": cve_id
             },
+            headers=cls._get_headers(),
             timeout=30
         )
 
