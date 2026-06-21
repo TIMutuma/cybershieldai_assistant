@@ -1,26 +1,37 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Send, Shield, User, Loader2 } from "lucide-react";
+import { Bot, Send, Shield, User, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  threat_level?: string;
+  recommended_actions?: string[];
+  confidence_score?: number;
 }
 
 export default function Chat() {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState("");
 
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
       content:
-        "Hello! I'm CyberShield AI. Ask me about phishing emails, suspicious links, malware, ransomware, password security, or any cybersecurity concern."
+        "Hello! I'm CyberShield AI. Ask me about phishing emails, suspicious links, malware, ransomware, password security, or any cybersecurity concern.",
+      threat_level: "safe"
     }
   ]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Generate session ID on mount
+  useEffect(() => {
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    setSessionId(newSessionId);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -54,6 +65,11 @@ export default function Chat() {
           },
           body: JSON.stringify({
             question: userMessage,
+            session_id: sessionId,
+            conversation_history: messages.map(m => ({
+              role: m.role,
+              content: m.content
+            }))
           }),
         }
       );
@@ -64,9 +80,10 @@ export default function Chat() {
         ...prev,
         {
           role: "assistant",
-          content:
-            data.response ||
-            "Unable to generate response.",
+          content: data.response || "Unable to generate response.",
+          threat_level: data.threat_level || "unknown",
+          recommended_actions: data.recommended_actions || [],
+          confidence_score: data.confidence_score || 0
         },
       ]);
     } catch (error) {
@@ -76,6 +93,7 @@ export default function Chat() {
           role: "assistant",
           content:
             "Connection error. Please try again.",
+          threat_level: "error"
         },
       ]);
     } finally {
@@ -128,6 +146,14 @@ export default function Chat() {
                 className={`max-w-3xl rounded-xl p-4 ${
                   message.role === "user"
                     ? "bg-blue-600"
+                    : message.threat_level === "critical"
+                    ? "bg-red-900 border border-red-700"
+                    : message.threat_level === "high"
+                    ? "bg-orange-900 border border-orange-700"
+                    : message.threat_level === "medium"
+                    ? "bg-yellow-900 border border-yellow-700"
+                    : message.threat_level === "error"
+                    ? "bg-slate-800 border border-red-500"
                     : "bg-slate-900 border border-slate-800"
                 }`}
               >
@@ -138,6 +164,15 @@ export default function Chat() {
                       <span className="font-semibold">
                         CyberShield AI
                       </span>
+                      {message.threat_level && message.threat_level !== "safe" && message.threat_level !== "error" && message.threat_level !== "unknown" && (
+                        <span className={`text-xs font-bold uppercase ml-auto px-2 py-1 rounded ${
+                          message.threat_level === "critical" ? "bg-red-600" :
+                          message.threat_level === "high" ? "bg-orange-600" :
+                          "bg-yellow-600"
+                        }`}>
+                          {message.threat_level}
+                        </span>
+                      )}
                     </>
                   ) : (
                     <>
@@ -152,6 +187,26 @@ export default function Chat() {
                 <p className="whitespace-pre-wrap">
                   {message.content}
                 </p>
+
+                {message.recommended_actions && message.recommended_actions.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-current border-opacity-20">
+                    <div className="text-sm font-semibold mb-2">Recommended Actions:</div>
+                    <ul className="text-sm space-y-1">
+                      {message.recommended_actions.map((action, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <CheckCircle size={14} className="mt-1 flex-shrink-0" />
+                          {action}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {message.confidence_score !== undefined && message.confidence_score > 0 && (
+                  <div className="mt-2 text-xs text-opacity-70">
+                    Confidence: {Math.round(message.confidence_score * 100)}%
+                  </div>
+                )}
               </div>
             </div>
           ))}
